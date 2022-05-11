@@ -1,38 +1,28 @@
+use std::time::Instant;
+use rand::Rng;
+
 use pixel_canvas::{
     Canvas,
     canvas::CanvasInfo,
-    input::Event,
-    input::glutin::event::VirtualKeyCode,
-    input::WindowEvent, Color,
+    input::{
+        Event,
+        glutin::event::VirtualKeyCode,
+        WindowEvent
+    },
+    Color,
+    Image,
 };
 
 fn main() {
-    let canvas = Canvas::new(500, 500)
+    let length = GameState::CELLCOUNT * GameState::CELLSIZE;
+
+    let canvas = Canvas::new(length, length)
         .state(GameState::new())
         .title("Snake")
         .input(GameState::input_handler);
 
     canvas.render(|state, image| {
-        let cells: isize = (image.width() / GameState::CELLSIZE) as isize;
-
-        if state.framecount % 5 != 0 {
-            state.framecount += 1;
-            return;
-        }
-
-        state.update(&cells);
-
-        let width = image.width();
-
-        for (y, row) in image.chunks_mut(width).enumerate() {
-            for (x, pixel) in row.into_iter().enumerate() {
-                *pixel = background();
-
-                if state.point_in_snake(x, y) {
-                    *pixel = snake_color();
-                }
-            }
-        }
+        state.draw(image);
 
         state.framecount += 1;
     });
@@ -54,21 +44,35 @@ fn snake_color() -> Color {
     }
 }
 
+fn fruit_color() -> Color {
+    Color {
+        r: 255,
+        g: 0,
+        b: 0,
+    }
+}
+
 struct GameState {
+    gameover: bool,
     framecount: usize,
     head_x: usize,
     head_y: usize,
     head_dx: isize,
     head_dy: isize,
     to_grow: isize,
-    body: Vec<(usize, usize)>
+    body: Vec<(usize, usize)>,
+    fruit_x: isize,
+    fruit_y: isize,
+    last_tick: Instant,
 }
 
 impl GameState {
     const CELLSIZE: usize = 15;
+    const CELLCOUNT: usize = 30;
 
     fn new() -> Self {
         Self {
+            gameover: false,
             framecount: 0,
             head_x: 5,
             head_y: 5,
@@ -76,6 +80,9 @@ impl GameState {
             head_dy: 0,
             to_grow: 5,
             body: vec![],
+            fruit_x: -1,
+            fruit_y: -1,
+            last_tick: Instant::now(),
         }
     }
 
@@ -83,12 +90,67 @@ impl GameState {
         self.head_x = ((self.head_x as isize + self.head_dx + cells) % cells) as usize;
         self.head_y = ((self.head_y as isize + self.head_dy + cells) % cells) as usize;
 
+        match (
+            self.fruit_x.try_into() as Result<usize, _>,
+            self.fruit_y.try_into() as Result<usize, _>
+        ) {
+            (Ok(fx), Ok(fy)) => {
+                if fx == self.head_x && fy == self.head_y {
+                    self.fruit_x = -1;
+                    self.fruit_y = -1;
+                    self.to_grow += 1;
+                }
+            },
+            _ => {
+                let mut rng = rand::thread_rng();
+
+                self.fruit_x = (rng.gen::<usize>() % GameState::CELLCOUNT) as isize;
+                self.fruit_y = (rng.gen::<usize>() % GameState::CELLCOUNT) as isize;
+            }
+        }
+
+        for (px, py) in self.body.iter() {
+            if *px == self.head_x && *py == self.head_y {
+                self.gameover = true;
+            }
+        }
+
         self.body.push((self.head_x, self.head_y));
         self.to_grow -= 1;
 
         if self.to_grow < 0 {
             self.body.remove(0);
             self.to_grow += 1;
+        }
+    }
+
+    fn draw(&mut self, image: &mut Image) {
+        if self.last_tick.elapsed().as_millis() < 100 {
+            return;
+        }
+
+        self.last_tick = Instant::now();
+
+        let cells: isize = (image.width() / GameState::CELLSIZE) as isize;
+
+        if !self.gameover {
+            self.update(&cells);
+        }
+
+        let width = image.width();
+
+        for (y, row) in image.chunks_mut(width).enumerate() {
+            for (x, pixel) in row.into_iter().enumerate() {
+                *pixel = background();
+
+                if self.point_in_fruit(x, y) {
+                    *pixel = fruit_color();
+                }
+
+                if self.point_in_snake(x, y) {
+                    *pixel = snake_color();
+                }
+            }
         }
     }
 
@@ -107,6 +169,26 @@ impl GameState {
         false
     }
 
+    fn point_in_fruit(&self, x: usize, y: usize) -> bool {
+        match (
+            self.fruit_x.try_into() as Result<usize, _>,
+            self.fruit_y.try_into() as Result<usize, _>
+        ) {
+            (Ok(fx), Ok(fy)) => {
+                let sx = fx * GameState::CELLSIZE;
+                let sy = fy * GameState::CELLSIZE;
+                let ex = sx + GameState::CELLSIZE;
+                let ey = sy + GameState::CELLSIZE;
+
+                let inx = (sx..=ex).contains(&x);
+                let iny = (sy..=ey).contains(&y);
+
+                inx && iny
+            },
+            _ => false
+        }
+    }
+
     fn input_handler(_info: &CanvasInfo, state: &mut Self, event: &Event<()>) -> bool {
         match event {
             Event::WindowEvent {
@@ -123,6 +205,12 @@ impl GameState {
                             Some(VirtualKeyCode::S) => ( 0, -1),
                             Some(VirtualKeyCode::A) => (-1,  0),
                             Some(VirtualKeyCode::D) => ( 1,  0),
+                            Some(VirtualKeyCode::R) => {
+                                if state.gameover {
+                                    *state = GameState::new();
+                                }
+                                (state.head_dx, state.head_dy)
+                            }
                             _ => (state.head_dx, state.head_dy),
                         };
                     },
