@@ -262,9 +262,13 @@ impl GameState {
                             return true
                         }
                         match input.virtual_keycode {
+                            Some(VirtualKeyCode::Up) |
                             Some(VirtualKeyCode::W) => state.move_queue.push(( 0,  1)),
+                            Some(VirtualKeyCode::Down) |
                             Some(VirtualKeyCode::S) => state.move_queue.push(( 0, -1)),
+                            Some(VirtualKeyCode::Left) |
                             Some(VirtualKeyCode::A) => state.move_queue.push((-1,  0)),
+                            Some(VirtualKeyCode::Right) |
                             Some(VirtualKeyCode::D) => state.move_queue.push(( 1,  0)),
                             Some(VirtualKeyCode::R) => {
                                 if state.gameover {
