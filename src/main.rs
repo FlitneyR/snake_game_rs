@@ -64,7 +64,9 @@ struct GameState {
     fruit_x: isize,
     fruit_y: isize,
     last_tick: Instant,
-    move_queue: Vec<(isize, isize)>
+    move_queue: Vec<(isize, isize)>,
+    should_clear: bool,
+    erase_last: bool,
 }
 
 impl GameState {
@@ -85,6 +87,8 @@ impl GameState {
             fruit_y: -1,
             last_tick: Instant::now(),
             move_queue: vec![],
+            should_clear: true,
+            erase_last: true,
         }
     }
 
@@ -133,9 +137,24 @@ impl GameState {
         self.body.push((self.head_x, self.head_y));
         self.to_grow -= 1;
 
-        if self.to_grow < 0 {
+        if self.erase_last {
             self.body.remove(0);
+            self.erase_last = false;
+        }
+
+        if self.to_grow < 0 {
             self.to_grow += 1;
+            self.erase_last = true;
+        }
+    }
+
+    fn _erase(&self, image: &mut Image) {
+        let w = Self::CELLSIZE;
+        let h = w;
+        let col = background();
+
+        for (px, py) in self.body.iter() {
+            draw_square(image, *px * w, *py * h, w, h, col);
         }
     }
 
@@ -144,32 +163,56 @@ impl GameState {
             return;
         }
 
+        if self.gameover {
+            return
+        }
+
+        if self.should_clear {
+            draw_square(
+                image, 0, 0,
+                image.width(), image.height(),
+                background()
+            );
+
+            self.should_clear = false;
+        }
+
         self.last_tick = Instant::now();
 
         let cells: isize = (image.width() / GameState::CELLSIZE) as isize;
 
-        if !self.gameover {
-            self.update(&cells);
+        let w = Self::CELLSIZE;
+        let h = w;
+        let col = background();
+
+        if self.erase_last {
+            match self.body.get(0) {
+                Some((x, y)) => draw_square(image, *x * w, *y * h, w, h, col),
+                _ => ()
+            }
         }
 
-        let width = image.width();
+        self.update(&cells);
 
-        for (y, row) in image.chunks_mut(width).enumerate() {
-            for (x, pixel) in row.into_iter().enumerate() {
-                *pixel = background();
+        let col = snake_color();
 
-                if self.point_in_fruit(x, y) {
-                    *pixel = fruit_color();
-                }
+        match self.body.last() {
+            Some((x, y)) => draw_square(image, *x * w, *y * h, w, h, col),
+            _ => (),
+        }
 
-                if self.point_in_snake(x, y) {
-                    *pixel = snake_color();
-                }
-            }
+        let col = fruit_color();
+
+        match (
+            self.fruit_x.try_into() as Result<usize, _>,
+            self.fruit_y.try_into() as Result<usize, _>
+        ) {
+            (Ok(fx), Ok(fy)) => draw_square(image, fx * w, fy * h, w, h, col),
+            _ => (),
         }
     }
 
-    fn point_in_snake(&self, x: usize, y: usize) -> bool {
+    fn _point_in_snake(&self, x: usize, y: usize) -> bool {
         for (px, py) in self.body.iter() {
             let sx = px * Self::CELLSIZE;
             let sy = py * Self::CELLSIZE;
@@ -184,7 +227,7 @@ impl GameState {
         false
     }
 
-    fn point_in_fruit(&self, x: usize, y: usize) -> bool {
+    fn _point_in_fruit(&self, x: usize, y: usize) -> bool {
         match (
             self.fruit_x.try_into() as Result<usize, _>,
             self.fruit_y.try_into() as Result<usize, _>
@@ -238,5 +281,26 @@ impl GameState {
         }
 
         true
+    }
+}
+
+fn draw_square(
+    image: &mut Image,
+    x: usize, y: usize,
+    w: usize, h: usize,
+    col: Color
+) {
+    let width = image.width();
+
+    for j in y..(y + h) {
+        for i in x..(x + w) {
+            let index = i + j * width;
+            match image.get_mut(index) {
+                Some(pixel) => {
+                    *pixel = col
+                },
+                None => (),
+            }
+        }
     }
 }
