@@ -6,7 +6,7 @@ use pixel_canvas::{
     canvas::CanvasInfo,
     input::{
         Event,
-        glutin::event::VirtualKeyCode,
+        glutin::event::{VirtualKeyCode, ElementState},
         WindowEvent
     },
     Color,
@@ -64,6 +64,7 @@ struct GameState {
     fruit_x: isize,
     fruit_y: isize,
     last_tick: Instant,
+    move_queue: Vec<(isize, isize)>
 }
 
 impl GameState {
@@ -83,10 +84,24 @@ impl GameState {
             fruit_x: -1,
             fruit_y: -1,
             last_tick: Instant::now(),
+            move_queue: vec![],
         }
     }
 
     fn update(&mut self, cells: &isize) {
+        match self.move_queue.get(0) {
+            Some((dx, dy)) => {
+                if self.head_dx == -*dx && self.head_dy == -*dy {
+                    ()
+                } else {
+                    self.head_dx = *dx;
+                    self.head_dy = *dy;
+                }
+                self.move_queue.remove(0);
+            },
+            _ => ()
+        }
+
         self.head_x = ((self.head_x as isize + self.head_dx + cells) % cells) as usize;
         self.head_y = ((self.head_y as isize + self.head_dy + cells) % cells) as usize;
 
@@ -200,18 +215,20 @@ impl GameState {
                         input,
                         ..
                     } => {
-                        (state.head_dx, state.head_dy) = match input.virtual_keycode {
-                            Some(VirtualKeyCode::W) => ( 0,  1),
-                            Some(VirtualKeyCode::S) => ( 0, -1),
-                            Some(VirtualKeyCode::A) => (-1,  0),
-                            Some(VirtualKeyCode::D) => ( 1,  0),
+                        if input.state == ElementState::Released {
+                            return true
+                        }
+                        match input.virtual_keycode {
+                            Some(VirtualKeyCode::W) => state.move_queue.push(( 0,  1)),
+                            Some(VirtualKeyCode::S) => state.move_queue.push(( 0, -1)),
+                            Some(VirtualKeyCode::A) => state.move_queue.push((-1,  0)),
+                            Some(VirtualKeyCode::D) => state.move_queue.push(( 1,  0)),
                             Some(VirtualKeyCode::R) => {
                                 if state.gameover {
                                     *state = GameState::new();
                                 }
-                                (state.head_dx, state.head_dy)
                             }
-                            _ => (state.head_dx, state.head_dy),
+                            _ => (),
                         };
                     },
                     _ => (),
