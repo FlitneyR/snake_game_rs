@@ -1,4 +1,5 @@
-use std::{time::Instant, process::exit};
+use std::time::Instant;
+use std::process::exit;
 use rand::Rng;
 
 use pixel_canvas::{
@@ -55,6 +56,7 @@ fn fruit_color() -> Color {
 struct GameState {
     gameover: bool,
     framecount: usize,
+    freeze_frames: usize,
     head_x: usize,
     head_y: usize,
     head_dx: isize,
@@ -73,6 +75,7 @@ const CELL_SIZE: usize = 25;
 const CELL_COUNT: usize = 25;
 const SNAKE_BORDER: usize = 4;
 const FRUIT_BORDER: usize = 2;
+const SAVING_FRAMES: usize = 5;
 
 impl GameState {
 
@@ -80,6 +83,7 @@ impl GameState {
         Self {
             gameover: false,
             framecount: 0,
+            freeze_frames: 0,
             head_x: 5,
             head_y: 5,
             head_dx: 1,
@@ -116,11 +120,11 @@ impl GameState {
 
         self.update();
 
-        self.draw_fruit(image);
-
-        self.draw_head(image);
-
-        self.extend_neck(image);
+        if self.freeze_frames == 0 {
+            self.draw_fruit(image);
+            self.draw_head(image);
+            self.extend_neck(image);
+        }
 
         self.last_tick = Instant::now();
     }
@@ -128,8 +132,21 @@ impl GameState {
     fn update(&mut self) {
         self.perform_next_move();
 
-        self.move_head();
+        if self.freeze_frames > 0 {
+            if self.will_be_gameover() {
+                self.freeze_frames -= 1;
+                if self.freeze_frames > 0 {
+                    return;
+                }
+            } else {
+                self.freeze_frames = 0;
+            }
+        } else if self.will_be_gameover() {
+            self.freeze_frames = SAVING_FRAMES;
+            return;
+        }
 
+        self.move_head();
         self.fruit_update();
 
         if self.self_collision() {
@@ -158,6 +175,13 @@ impl GameState {
         self.body.iter().map(|(x, y)| {
             *x == self.head_x &&
             *y == self.head_y
+        }).fold(false, |a, b| a || b)
+    }
+
+    fn will_be_gameover(&self) -> bool {
+        self.body.iter().map(|(x, y)| {
+            *x == wrap_add(self.head_x, self.head_dx, CELL_COUNT) &&
+            *y == wrap_add(self.head_y, self.head_dy, CELL_COUNT)
         }).fold(false, |a, b| a || b)
     }
 
@@ -420,7 +444,11 @@ fn draw_rect(
     }
 }
 
-fn wrap_add_2d((x, y): (usize, usize), (dx, dy): (isize, isize), (lx, ly): (usize, usize)) -> (usize, usize) {
+fn wrap_add_2d(
+    (x, y): (usize, usize),
+    (dx, dy): (isize, isize),
+    (lx, ly): (usize, usize)
+) -> (usize, usize) {
     (wrap_add(x, dx, lx),
      wrap_add(y, dy, ly))
 }
