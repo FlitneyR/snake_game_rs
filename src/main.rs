@@ -1,17 +1,14 @@
-use std::time::Instant;
-use std::process::exit;
 use rand::Rng;
+use std::process::exit;
+use std::time::Instant;
 
 use pixel_canvas::{
-    Canvas,
     canvas::CanvasInfo,
     input::{
-        Event,
-        glutin::event::{VirtualKeyCode, ElementState},
-        WindowEvent
+        glutin::event::{ElementState, VirtualKeyCode},
+        Event, WindowEvent,
     },
-    Color,
-    Image,
+    Canvas, Color, Image,
 };
 
 fn main() {
@@ -29,29 +26,11 @@ fn main() {
     });
 }
 
-fn background() -> Color {
-    Color {
-        r: 25,
-        g: 25,
-        b: 25,
-    }
-}
+const BACKGROUND: Color = Color { r: 25, g: 25, b: 25 };
 
-fn snake_color() -> Color {
-    Color {
-        r: 255,
-        g: 255,
-        b: 255,
-    }
-}
+const SNAKE_COLOR: Color = Color { r: 255, g: 255, b: 255 };
 
-fn fruit_color() -> Color {
-    Color {
-        r: 255,
-        g: 0,
-        b: 0,
-    }
-}
+const FRUIT_COLOR: Color = Color { r: 255, g: 0, b: 0 };
 
 struct GameState {
     gameover: bool,
@@ -78,7 +57,6 @@ const FRUIT_BORDER: usize = 2;
 const SAVING_FRAMES: usize = 5;
 
 impl GameState {
-
     fn new() -> Self {
         Self {
             gameover: false,
@@ -105,10 +83,11 @@ impl GameState {
         }
 
         if self.should_clear {
-            draw_rect(image,
+            draw_rect(
+                image,
                 0, 0,
                 image.width(), image.height(),
-                background()
+                BACKGROUND
             );
 
             self.should_clear = false;
@@ -172,31 +151,32 @@ impl GameState {
     }
 
     fn self_collision(&self) -> bool {
-        self.body.iter().map(|(x, y)| {
-            *x == self.head_x &&
-            *y == self.head_y
-        }).fold(false, |a, b| a || b)
+        self.body
+            .iter()
+            .map(|(x, y)| *x == self.head_x && *y == self.head_y)
+            .fold(false, |a, b| a || b)
     }
 
     fn will_be_gameover(&self) -> bool {
-        self.body.iter().map(|(x, y)| {
-            *x == wrap_add(self.head_x, self.head_dx, CELL_COUNT) &&
-            *y == wrap_add(self.head_y, self.head_dy, CELL_COUNT)
-        }).fold(false, |a, b| a || b)
+        self.body
+            .iter()
+            .map(|(x, y)| {
+                *x == wrap_add(self.head_x, self.head_dx, CELL_COUNT)
+                    && *y == wrap_add(self.head_y, self.head_dy, CELL_COUNT)
+            })
+            .fold(false, |a, b| a || b)
     }
 
     fn perform_next_move(&mut self) {
         match self.move_queue.get(0) {
             Some((dx, dy)) => {
-                if self.head_dx.abs() != dx.abs() &&
-                   self.head_dy.abs() != dy.abs()
-                {
+                if self.head_dx.abs() != dx.abs() && self.head_dy.abs() != dy.abs() {
                     self.head_dx = *dx;
                     self.head_dy = *dy;
                 }
                 self.move_queue.remove(0);
-            },
-            _ => ()
+            }
+            _ => (),
         }
     }
 
@@ -204,7 +184,7 @@ impl GameState {
         (self.head_x, self.head_y) = wrap_add_2d(
             (self.head_x, self.head_y),
             (self.head_dx, self.head_dy),
-             (CELL_COUNT, CELL_COUNT)
+            (CELL_COUNT, CELL_COUNT),
         );
     }
 
@@ -224,20 +204,19 @@ impl GameState {
     }
 
     fn should_make_fruit(&self) -> bool {
-        self.fruit_x < 0 &&
-        self.fruit_y < 0
+        self.fruit_x < 0 && self.fruit_y < 0
     }
 
     fn fruit_collision(&self) -> bool {
         match (
             self.fruit_x.try_into() as Result<usize, _>,
-            self.fruit_y.try_into() as Result<usize, _>
+            self.fruit_y.try_into() as Result<usize, _>,
         ) {
-            (Ok(fx), Ok(fy)) => {
-                self.body.iter().map(|(x, y)| {
-                    fx == *x && fy == *y
-                }).fold(false, |a, b| a || b)
-            },
+            (Ok(fx), Ok(fy)) => self
+                .body
+                .iter()
+                .map(|(x, y)| fx == *x && fy == *y)
+                .fold(false, |a, b| a || b),
             _ => false,
         }
     }
@@ -245,10 +224,9 @@ impl GameState {
     fn _erase(&self, image: &mut Image) {
         let w = CELL_SIZE;
         let h = w;
-        let col = background();
 
         for (px, py) in self.body.iter() {
-            draw_rect(image, *px * w, *py * h, w, h, col);
+            draw_rect(image, *px * w, *py * h, w, h, BACKGROUND);
         }
     }
 
@@ -259,27 +237,33 @@ impl GameState {
     fn erase_last(&self, image: &mut Image) {
         let w = CELL_SIZE;
         let h = w;
-        let col = background();
 
         match self.body.get(0) {
-            Some((x, y)) => draw_rect(image, *x * w, *y * h, w, h, col),
-            _ => ()
+            Some((x, y)) => draw_rect(
+                image,
+                *x * w, *y * h,
+                w, h,
+                BACKGROUND),
+            _ => (),
         }
     }
 
     fn draw_fruit(&self, image: &mut Image) {
         let w = CELL_SIZE;
         let h = w;
-        let col = fruit_color();
 
         match (
             self.fruit_x.try_into() as Result<usize, _>,
-            self.fruit_y.try_into() as Result<usize, _>
+            self.fruit_y.try_into() as Result<usize, _>,
         ) {
-            (Ok(fx), Ok(fy)) => draw_rect(image,
-                fx * w + FRUIT_BORDER, fy * h + FRUIT_BORDER,
-                w - FRUIT_BORDER * 2, h - FRUIT_BORDER * 2,
-                col),
+            (Ok(fx), Ok(fy)) => draw_rect(
+                image,
+                fx * w + FRUIT_BORDER,
+                fy * h + FRUIT_BORDER,
+                w - FRUIT_BORDER * 2,
+                h - FRUIT_BORDER * 2,
+                FRUIT_COLOR,
+            ),
             _ => (),
         }
     }
@@ -287,59 +271,55 @@ impl GameState {
     fn draw_head(&self, image: &mut Image) {
         let w = CELL_SIZE;
         let h = w;
-        let col = background();
 
         let (x, y) = self.get_head();
         let (x, y) = (x * w, y * h);
 
-        draw_rect(image, x, y, w, h, col);
-
-        let col = snake_color();
+        draw_rect(image, x, y, w, h, BACKGROUND);
 
         let (w, h) = (w - SNAKE_BORDER * 2, h - SNAKE_BORDER * 2);
 
-        draw_rect(image, x + SNAKE_BORDER, y + SNAKE_BORDER, w, h, col);
+        draw_rect(image, x + SNAKE_BORDER, y + SNAKE_BORDER, w, h, BACKGROUND);
 
-        let (x, y) = match (
-            self.head_dx, self.head_dy
-        ) {
-            (-1,  0) => (x + SNAKE_BORDER * 2, y + SNAKE_BORDER * 1),
-            ( 1,  0) => (x + SNAKE_BORDER * 0, y + SNAKE_BORDER * 1),
-            ( 0, -1) => (x + SNAKE_BORDER * 1, y + SNAKE_BORDER * 2),
-            ( 0,  1) => (x + SNAKE_BORDER * 1, y + SNAKE_BORDER * 0),
+        let (x, y) = match (self.head_dx, self.head_dy) {
+            (-1, 0) => (x + SNAKE_BORDER * 2, y + SNAKE_BORDER * 1),
+            (1, 0) => (x + SNAKE_BORDER * 0, y + SNAKE_BORDER * 1),
+            (0, -1) => (x + SNAKE_BORDER * 1, y + SNAKE_BORDER * 2),
+            (0, 1) => (x + SNAKE_BORDER * 1, y + SNAKE_BORDER * 0),
             _ => (x, y),
         };
 
-        draw_rect(image, x, y, w, h, col);
+        draw_rect(image, x, y, w, h, SNAKE_COLOR);
     }
-    
+
     fn extend_neck(&self, image: &mut Image) {
         let (x, y) = self.get_head();
 
         let (x, y) = wrap_add_2d(
             (x, y),
             (-self.head_dx, -self.head_dy),
-             (CELL_COUNT, CELL_COUNT)
+            (CELL_COUNT, CELL_COUNT),
         );
 
         let w = CELL_SIZE;
         let h = w;
-        
+
         let (x, y) = (x * w, y * h);
 
-        let (x, y) = match (
-            self.head_dx, self.head_dy
-        ) {
-            ( 1,  0) => (x + SNAKE_BORDER * 2, y + SNAKE_BORDER * 1),
-            (-1,  0) => (x + SNAKE_BORDER * 0, y + SNAKE_BORDER * 1),
-            ( 0,  1) => (x + SNAKE_BORDER * 1, y + SNAKE_BORDER * 2),
-            ( 0, -1) => (x + SNAKE_BORDER * 1, y + SNAKE_BORDER * 0),
+        let (x, y) = match (self.head_dx, self.head_dy) {
+            (1, 0) => (x + SNAKE_BORDER * 2, y + SNAKE_BORDER * 1),
+            (-1, 0) => (x + SNAKE_BORDER * 0, y + SNAKE_BORDER * 1),
+            (0, 1) => (x + SNAKE_BORDER * 1, y + SNAKE_BORDER * 2),
+            (0, -1) => (x + SNAKE_BORDER * 1, y + SNAKE_BORDER * 0),
             _ => (x, y),
         };
 
-        let col = snake_color();
-
-        draw_rect(image, x, y, w - SNAKE_BORDER * 2, h - SNAKE_BORDER * 2, col);
+        draw_rect(
+            image,
+            x, y,
+            w - SNAKE_BORDER * 2, h - SNAKE_BORDER * 2,
+            SNAKE_COLOR
+        );
     }
 
     fn get_head(&self) -> (usize, usize) {
@@ -355,7 +335,7 @@ impl GameState {
             let ey = sy + CELL_SIZE;
 
             if (sx..=ex).contains(&x) && (sy..=ey).contains(&y) {
-                return true
+                return true;
             }
         }
         false
@@ -364,7 +344,7 @@ impl GameState {
     fn _point_in_fruit(&self, x: usize, y: usize) -> bool {
         match (
             self.fruit_x.try_into() as Result<usize, _>,
-            self.fruit_y.try_into() as Result<usize, _>
+            self.fruit_y.try_into() as Result<usize, _>,
         ) {
             (Ok(fx), Ok(fy)) => {
                 let sx = fx * CELL_SIZE;
@@ -376,8 +356,8 @@ impl GameState {
                 let iny = (sy..=ey).contains(&y);
 
                 inx && iny
-            },
-            _ => false
+            }
+            _ => false,
         }
     }
 
@@ -386,36 +366,34 @@ impl GameState {
             Event::WindowEvent {
                 event: window_event,
                 ..
-            } => {
-                match window_event {
-                    WindowEvent::KeyboardInput {
-                        input,
-                        ..
-                    } => {
-                        if input.state == ElementState::Released {
-                            return true
+            } => match window_event {
+                WindowEvent::KeyboardInput { input, .. } => {
+                    if input.state == ElementState::Released {
+                        return true;
+                    }
+                    match input.virtual_keycode {
+                        Some(VirtualKeyCode::Up) | Some(VirtualKeyCode::W) => {
+                            state.move_queue.push((0, 1))
                         }
-                        match input.virtual_keycode {
-                            Some(VirtualKeyCode::Up) |
-                            Some(VirtualKeyCode::W) => state.move_queue.push(( 0,  1)),
-                            Some(VirtualKeyCode::Down) |
-                            Some(VirtualKeyCode::S) => state.move_queue.push(( 0, -1)),
-                            Some(VirtualKeyCode::Left) |
-                            Some(VirtualKeyCode::A) => state.move_queue.push((-1,  0)),
-                            Some(VirtualKeyCode::Right) |
-                            Some(VirtualKeyCode::D) => state.move_queue.push(( 1,  0)),
-                            Some(VirtualKeyCode::R) => {
-                                if state.gameover {
-                                    *state = GameState::new();
-                                }
+                        Some(VirtualKeyCode::Down) | Some(VirtualKeyCode::S) => {
+                            state.move_queue.push((0, -1))
+                        }
+                        Some(VirtualKeyCode::Left) | Some(VirtualKeyCode::A) => {
+                            state.move_queue.push((-1, 0))
+                        }
+                        Some(VirtualKeyCode::Right) | Some(VirtualKeyCode::D) => {
+                            state.move_queue.push((1, 0))
+                        }
+                        Some(VirtualKeyCode::R) => {
+                            if state.gameover {
+                                *state = GameState::new();
                             }
-                            Some(VirtualKeyCode::Escape) |
-                            Some(VirtualKeyCode::Q) => exit(0),
-                            _ => (),
-                        };
-                    },
-                    _ => (),
+                        }
+                        Some(VirtualKeyCode::Escape) | Some(VirtualKeyCode::Q) => exit(0),
+                        _ => (),
+                    };
                 }
+                _ => (),
             },
             _ => (),
         }
@@ -424,21 +402,14 @@ impl GameState {
     }
 }
 
-fn draw_rect(
-    image: &mut Image,
-    x: usize, y: usize,
-    w: usize, h: usize,
-    col: Color
-) {
+fn draw_rect(image: &mut Image, x: usize, y: usize, w: usize, h: usize, col: Color) {
     let width = image.width();
 
     for j in y..(y + h) {
         for i in x..(x + w) {
             let index = i + j * width;
             match image.get_mut(index) {
-                Some(pixel) => {
-                    *pixel = col
-                },
+                Some(pixel) => *pixel = col,
                 None => (),
             }
         }
@@ -448,10 +419,9 @@ fn draw_rect(
 fn wrap_add_2d(
     (x, y): (usize, usize),
     (dx, dy): (isize, isize),
-    (lx, ly): (usize, usize)
+    (lx, ly): (usize, usize),
 ) -> (usize, usize) {
-    (wrap_add(x, dx, lx),
-     wrap_add(y, dy, ly))
+    (wrap_add(x, dx, lx), wrap_add(y, dy, ly))
 }
 
 fn wrap_add(a: usize, b: isize, c: usize) -> usize {
