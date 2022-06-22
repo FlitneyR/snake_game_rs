@@ -409,6 +409,7 @@ impl GameState {
                                     *state = GameState::new();
                                 }
                             }
+                            Some(VirtualKeyCode::Escape) |
                             Some(VirtualKeyCode::Q) => exit(0),
                             _ => (),
                         };
